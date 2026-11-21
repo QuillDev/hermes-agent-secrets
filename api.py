@@ -30,6 +30,7 @@ from __future__ import annotations
 import threading
 import uuid
 
+from .host import CLI
 from .vault import Vault, check_name
 
 _VAULTS = {}
@@ -127,7 +128,7 @@ def ask(session_id, platform, name, note="", replace=False):
         return {"status": "exists", "secret": known}
     surface = surface_for(platform)
     if surface is None:
-        raise ValueError(f"Nowhere in this chat can take a secret. Ask the person to store it with `hermes secret set {name}` on this machine, then use it by that name.")
+        raise ValueError(f"Nowhere in this chat can take a secret. Ask the person to store it with `{CLI} secret set {name}` on this machine, then use it by that name.")
     with _PENDING_LOCK:
         # Asking again after a wait ran out picks up the request that's still open. The surface is
         # asked again with the same id, so a chat app that restarted meanwhile shows it again.
@@ -146,7 +147,7 @@ def ask(session_id, platform, name, note="", replace=False):
     if not shown:
         with _PENDING_LOCK:
             _PENDING.pop(request_id, None)
-        raise ValueError(f"This chat can't show a secret field. Ask the person to store it with `hermes secret set {name}`, then use it by that name.")
+        raise ValueError(f"This chat can't show a secret field. Ask the person to store it with `{CLI} secret set {name}`, then use it by that name.")
     return {"id": request_id}
 
 

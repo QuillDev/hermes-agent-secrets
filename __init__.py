@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from . import api
+from .host import CLI
 from .vault import check_name
 
 TOOLSET = "secrets"
@@ -30,8 +31,8 @@ POLL = 5
 MASK_MIN = 6
 
 USE = (
-    "Use it by name and never print it: `hermes secret run {name} -- <command>` runs a command with "
-    "${name} set, and `$(hermes secret get {name})` gives the value inline. Tool output that contains it "
+    f"Use it by name and never print it: `{CLI} secret run {{name}} -- <command>` runs a command with "
+    f"${{name}} set, and `$({CLI} secret get {{name}})` gives the value inline. Tool output that contains it "
     "shows «secret:{name}» instead."
 )
 
@@ -98,12 +99,12 @@ def share(args, _session):
         if args.get("delete_file"):
             file.unlink()
     elif api.about(name) is None:
-        raise ValueError(f"no secret named {name}: store it first (from_file, or `<command> | hermes secret set {name}`)")
+        raise ValueError(f"no secret named {name}: store it first (from_file, or `<command> | {CLI} secret set {name}`)")
     surface = api.surface_for(_platform())
     line = surface.show_line(name) if surface is not None else None
     if line:
         return {"status": "ready", "name": name, "show": line, "note": f"Put {line} on a line of its own in your reply; the person sees it there behind a reveal button."}
-    return {"status": "ready", "name": name, "note": f"This chat can't show secrets. Tell the person to run `hermes secret get {name}` on this machine."}
+    return {"status": "ready", "name": name, "note": f"This chat can't show secrets. Tell the person to run `{CLI} secret get {name}` on this machine."}
 
 
 def listing(_args, _session):
@@ -130,7 +131,7 @@ TOOLS = [
         share,
         GUIDANCE + "Give the person a secret value (a password you generated, a key you created) without it entering "
         "this conversation. Write the value to a file with a command (e.g. `openssl rand -base64 24 > /tmp/pw`) "
-        "and pass from_file, or pipe it into `hermes secret set NAME` and pass just the name. The result says how to "
+        f"and pass from_file, or pipe it into `{CLI} secret set NAME` and pass just the name. The result says how to "
         "show it to them in your reply.",
         {
             "name": {"type": "string", "description": "Env-var style name, e.g. DB_ADMIN_PASSWORD."},
@@ -217,7 +218,7 @@ def _setup_cli(parser):
     put.add_argument("--note", help="One line about what it is")
     rm = sub.add_parser("rm", help="Delete a secret")
     rm.add_argument("name")
-    run = sub.add_parser("run", help="Run a command with secrets as env vars: hermes secret run NAME [NAME...] -- cmd")
+    run = sub.add_parser("run", help=f"Run a command with secrets as env vars: {CLI} secret run NAME [NAME...] -- cmd")
     run.add_argument("rest", nargs=argparse.REMAINDER, help="NAME [NAME...] -- command")
 
 
@@ -242,14 +243,14 @@ def _cli(args):
         elif args.secret_action == "run":
             _run(args.rest)
     except (ValueError, OSError) as error:
-        raise SystemExit(f"hermes secret: {error}")
+        raise SystemExit(f"{CLI} secret: {error}")
 
 
 def run_env(rest):
     """`NAME [NAME...] -- command` as (command, env with those secrets set)."""
     rest = list(rest)
     if "--" not in rest or rest.index("--") == 0 or rest.index("--") == len(rest) - 1:
-        raise ValueError("give names, then the command after --, e.g. hermes secret run API_KEY -- curl ...")
+        raise ValueError(f"give names, then the command after --, e.g. {CLI} secret run API_KEY -- curl ...")
     split = rest.index("--")
     env = dict(os.environ)
     for name in rest[:split]:
