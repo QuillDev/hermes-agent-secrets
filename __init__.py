@@ -167,30 +167,43 @@ def _wrap(fn):
 _KNOWN = {}
 
 
-def _values():
-    """Stored (name, value) pairs for the current home, longest value first, reread only after a change."""
+def _mask_forms():
+    """Precomputed (form, replacement) pairs for the current home, longest form first.
+
+    Recomputed only when the vault revision changes, avoiding per-call JSON
+    escaping, set allocations, and nondeterministic form iteration on every
+    tool result and terminal output.
+    """
     try:
         store = api.vault()
     except Exception:
-        return []
+        return ()
     revision = store.revision()
-    known = _KNOWN.get(str(store.dir))
+    key = str(store.dir)
+    known = _KNOWN.get(key)
     if known is None or known[0] != revision:
-        known = (revision, sorted(store.values(), key=lambda pair: len(pair[1]), reverse=True))
-        _KNOWN[str(store.dir)] = known
+        forms = {}
+        for name, value in sorted(store.values(), key=lambda pair: len(pair[1]), reverse=True):
+            if len(value) < MASK_MIN:
+                continue
+            replacement = f"«secret:{name}»"
+            # The value as written, and as it reads inside a JSON string (tool results usually are).
+            escaped = json.dumps(value)[1:-1]
+            candidates = (value,) if escaped == value else sorted((value, escaped), key=len, reverse=True)
+            for form in candidates:
+                forms.setdefault(form, replacement)
+        ordered = tuple(sorted(forms.items(), key=lambda pair: len(pair[0]), reverse=True))
+        known = (revision, ordered)
+        _KNOWN[key] = known
     return known[1]
 
 
 def mask(text):
     if not isinstance(text, str) or not text:
         return text
-    for name, value in _values():
-        if len(value) < MASK_MIN:
-            continue
-        # The value as written, and as it reads inside a JSON string (tool results usually are).
-        for form in {value, json.dumps(value)[1:-1]}:
-            if form in text:
-                text = text.replace(form, f"«secret:{name}»")
+    for form, replacement in _mask_forms():
+        if form in text:
+            text = text.replace(form, replacement)
     return text
 
 

@@ -212,3 +212,13 @@ def test_values_are_encrypted_on_disk(plugin):
     assert plugin.api.get("PLAIN_CHECK") == "find-me-in-the-database"
     assert oct(store.key_path.stat().st_mode & 0o777) == "0o600"
     assert oct(store.dir.stat().st_mode & 0o777) == "0o700"
+
+
+def test_masking_prefers_longest_form_and_ignores_short_values(plugin):
+    plugin.api.put("SHORT_TOKEN", "overlap_secret_12345")
+    plugin.api.put("LONG_TOKEN", "overlap_secret_12345_extended")
+    plugin.api.put("TINY", "12345")
+    text = "a=overlap_secret_12345_extended b=overlap_secret_12345 c=12345"
+    assert plugin.mask(text) == "a=«secret:LONG_TOKEN» b=«secret:SHORT_TOKEN» c=12345"
+    assert plugin.api.about("LONG_TOKEN")["name"] == "LONG_TOKEN"
+    assert plugin.api.about("MISSING_TOKEN") is None

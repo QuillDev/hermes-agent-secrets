@@ -96,8 +96,14 @@ class Vault:
 
     def about(self, name):
         """A secret's name, note and dates (never the value), or None."""
-        name = check_name(name)
-        return next((s for s in self.names() if s["name"] == name), None)
+        rows = self._run(
+            "SELECT name, note, origin, created_at, updated_at FROM secrets WHERE name=?",
+            (check_name(name),),
+        )
+        if not rows:
+            return None
+        r = rows[0]
+        return {"name": r[0], "note": r[1], "origin": r[2], "created_at": r[3], "updated_at": r[4]}
 
     def get(self, name):
         rows = self._run("SELECT value FROM secrets WHERE name=?", (check_name(name),))
